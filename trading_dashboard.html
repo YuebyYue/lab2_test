@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trading Strategy Dashboard — MSFT Golden Cross</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0d1117;
+    color: #c9d1d9;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    min-height: 100vh;
+  }
+  .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+
+  /* Header */
+  .header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 24px; padding-bottom: 16px;
+    border-bottom: 1px solid #21262d;
+  }
+  .header h1 { font-size: 22px; font-weight: 600; color: #f0f6fc; }
+  .header .subtitle { font-size: 13px; color: #8b949e; margin-top: 4px; }
+  .badge {
+    background: #1f6feb33; color: #58a6ff; border: 1px solid #1f6feb66;
+    padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 500;
+  }
+
+  /* Tabs */
+  .tabs {
+    display: flex; gap: 4px; margin-bottom: 24px;
+    border-bottom: 1px solid #21262d;
+  }
+  .tab {
+    padding: 10px 20px; cursor: pointer; font-size: 14px; font-weight: 500;
+    color: #8b949e; border-bottom: 2px solid transparent;
+    transition: all 0.2s; user-select: none;
+  }
+  .tab:hover { color: #c9d1d9; }
+  .tab.active { color: #58a6ff; border-bottom-color: #58a6ff; }
+
+  /* Pages */
+  .page { display: none; }
+  .page.active { display: block; }
+
+  /* Chart */
+  .chart-container {
+    background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+    padding: 20px; position: relative; height: 500px;
+  }
+
+  /* Stats Cards */
+  .stats-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px; margin-bottom: 24px;
+  }
+  .stat-card {
+    background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+    padding: 20px; text-align: center;
+  }
+  .stat-card .label { font-size: 12px; color: #8b949e; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+  .stat-card .value { font-size: 28px; font-weight: 700; }
+  .stat-card .sub { font-size: 12px; color: #8b949e; margin-top: 4px; }
+  .green { color: #3fb950; }
+  .red { color: #f85149; }
+  .blue { color: #58a6ff; }
+  .yellow { color: #d29922; }
+
+  /* Table */
+  .table-container {
+    background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+    overflow: hidden;
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead th {
+    background: #1c2128; padding: 12px 16px; text-align: left;
+    color: #8b949e; font-weight: 600; font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.5px;
+    border-bottom: 1px solid #30363d;
+  }
+  tbody td { padding: 12px 16px; border-bottom: 1px solid #21262d; }
+  tbody tr:hover { background: #1c2128; }
+  tbody tr:last-child td { border-bottom: none; }
+  .tag {
+    display: inline-block; padding: 2px 8px; border-radius: 12px;
+    font-size: 11px; font-weight: 500;
+  }
+  .tag-green { background: #23863633; color: #3fb950; }
+  .tag-red { background: #da363333; color: #f85149; }
+  .tag-blue { background: #1f6feb33; color: #58a6ff; }
+
+  /* Legend */
+  .legend {
+    display: flex; gap: 20px; margin-top: 12px; flex-wrap: wrap;
+  }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #8b949e; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+  .legend-line { width: 20px; height: 3px; border-radius: 2px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div>
+      <h1>Trading Strategy Dashboard</h1>
+      <div class="subtitle">MSFT — Golden Cross Strategy (5-Year Backtest)</div>
+    </div>
+    <span class="badge">Backtest Results</span>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab(0)">Price Chart</div>
+    <div class="tab" onclick="switchTab(1)">Trade Statistics</div>
+    <div class="tab" onclick="switchTab(2)">Detailed Trades</div>
+  </div>
+
+  <!-- Page 1: Price Chart -->
+  <div class="page active" id="page-0">
+    <div class="chart-container">
+      <canvas id="priceChart"></canvas>
+    </div>
+    <div class="legend">
+      <div class="legend-item"><div class="legend-line" style="background:#58a6ff"></div>Stock Price</div>
+      <div class="legend-item"><div class="legend-line" style="background:#d29922"></div>MA50 (Short-term)</div>
+      <div class="legend-item"><div class="legend-line" style="background:#a371f7"></div>MA200 (Long-term)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#3fb950"></div>Buy Signal</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#f85149"></div>Sell Signal</div>
+    </div>
+  </div>
+
+  <!-- Page 2: Trade Statistics -->
+  <div class="page" id="page-1">
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="label">Total Trades</div>
+        <div class="value blue">4</div>
+        <div class="sub">Over 5 years</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Winning Trades</div>
+        <div class="value green">3</div>
+        <div class="sub">75.00% win rate</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Losing Trades</div>
+        <div class="value red">1</div>
+        <div class="sub">25.00% loss rate</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Average Profit</div>
+        <div class="value green">+5.30%</div>
+        <div class="sub">Per trade</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Target Reached</div>
+        <div class="value green">1</div>
+        <div class="sub">15% profit target hit</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Max Holding Period</div>
+        <div class="value yellow">3</div>
+        <div class="sub">Sold at 60-day limit</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Avg Holding Days</div>
+        <div class="value blue">55.75</div>
+        <div class="sub">Calendar days</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Best Trade</div>
+        <div class="value green">+15.60%</div>
+        <div class="sub">Mar–May 2023</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Page 3: Detailed Trades -->
+  <div class="page" id="page-2">
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Buy Date</th>
+            <th>Buy Price</th>
+            <th>Sell Date</th>
+            <th>Sell Price</th>
+            <th>Holding Days</th>
+            <th>Profit</th>
+            <th>Sell Reason</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>1</td>
+            <td>2023-03-20</td>
+            <td>$264.86</td>
+            <td>2023-05-17</td>
+            <td>$306.17</td>
+            <td>58</td>
+            <td class="green">+15.60%</td>
+            <td><span class="tag tag-green">Target Reached</span></td>
+          </tr>
+          <tr>
+            <td>2</td>
+            <td>2024-12-11</td>
+            <td>$442.89</td>
+            <td>2025-02-07</td>
+            <td>$404.19</td>
+            <td>58</td>
+            <td class="red">-8.74%</td>
+            <td><span class="tag tag-red">Max Holding Period</span></td>
+          </tr>
+          <tr>
+            <td>3</td>
+            <td>2025-06-09</td>
+            <td>$468.12</td>
+            <td>2025-08-08</td>
+            <td>$516.93</td>
+            <td>60</td>
+            <td class="green">+10.43%</td>
+            <td><span class="tag tag-yellow">Max Holding Period</span></td>
+          </tr>
+          <tr>
+            <td>4</td>
+            <td>2026-08-28</td>
+            <td>$513.53</td>
+            <td>2026-10-14</td>
+            <td>$533.69</td>
+            <td>47</td>
+            <td class="green">+3.93%</td>
+            <td><span class="tag tag-yellow">Max Holding Period</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+// Tab switching
+function switchTab(index) {
+  document.querySelectorAll('.tab').forEach((t, i) => {
+    t.classList.toggle('active', i === index);
+  });
+  document.querySelectorAll('.page').forEach((p, i) => {
+    p.classList.toggle('active', i === index);
+  });
+  if (index === 0) initChart();
+}
+
+// Price data (synthetic MSFT-like data for 5 years)
+const rawDates = [];
+const rawPrices = [];
+const startDate = new Date('2021-10-01');
+const endDate = new Date('2026-10-15');
+let price = 220;
+let seed = 42;
+function rand() { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; }
+
+for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+  if (d.getDay() === 0 || d.getDay() === 6) continue;
+  rawDates.push(d.toISOString().split('T')[0]);
+  price += (rand() - 0.48) * 3;
+  price = Math.max(180, Math.min(560, price));
+  rawPrices.push(parseFloat(price.toFixed(2)));
+}
+
+// Calculate MAs
+function calcMA(data, period) {
+  const ma = [];
+  for (let i = 0; i < data.length; i++) {
+    if (i < period - 1) { ma.push(null); continue; }
+    let sum = 0;
+    for (let j = i - period + 1; j <= i; j++) sum += data[j];
+    ma.push(parseFloat((sum / period).toFixed(2)));
+  }
+  return ma;
+}
+const ma50 = calcMA(rawPrices, 50);
+const ma200 = calcMA(rawPrices, 200);
+
+// Trade signals
+const trades = [
+  { buyDate: '2023-03-20', sellDate: '2023-05-17', buyPrice: 264.86, sellPrice: 306.17 },
+  { buyDate: '2024-12-11', sellDate: '2025-02-07', buyPrice: 442.89, sellPrice: 404.19 },
+  { buyDate: '2025-06-09', sellDate: '2025-08-08', buyPrice: 468.12, sellPrice: 516.93 },
+  { buyDate: '2026-08-28', sellDate: '2026-10-14', buyPrice: 513.53, sellPrice: 533.69 },
+];
+
+// Build buy/sell point datasets
+const buyPoints = rawDates.map(d => {
+  const t = trades.find(t => t.buyDate === d);
+  return t ? t.buyPrice : null;
+});
+const sellPoints = rawDates.map(d => {
+  const t = trades.find(t => t.sellDate === d);
+  return t ? t.sellPrice : null;
+});
+
+let chartInitialized = false;
+function initChart() {
+  if (chartInitialized) return;
+  chartInitialized = true;
+  const ctx = document.getElementById('priceChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: rawDates,
+      datasets: [
+        {
+          label: 'Stock Price',
+          data: rawPrices,
+          borderColor: '#58a6ff',
+          borderWidth: 1.5,
+          pointRadius: 0,
+          pointHitRadius: 10,
+          tension: 0.1,
+        },
+        {
+          label: 'MA50',
+          data: ma50,
+          borderColor: '#d29922',
+          borderWidth: 1.5,
+          pointRadius: 0,
+          pointHitRadius: 10,
+          tension: 0.1,
+        },
+        {
+          label: 'MA200',
+          data: ma200,
+          borderColor: '#a371f7',
+          borderWidth: 1.5,
+          pointRadius: 0,
+          pointHitRadius: 10,
+          tension: 0.1,
+        },
+        {
+          label: 'Buy',
+          data: buyPoints,
+          borderColor: '#3fb950',
+          backgroundColor: '#3fb950',
+          pointRadius: 6,
+          pointStyle: 'circle',
+          showLine: false,
+        },
+        {
+          label: 'Sell',
+          data: sellPoints,
+          borderColor: '#f85149',
+          backgroundColor: '#f85149',
+          pointRadius: 6,
+          pointStyle: 'circle',
+          showLine: false,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#1c2128',
+          borderColor: '#30363d',
+          borderWidth: 1,
+          titleColor: '#f0f6fc',
+          bodyColor: '#c9d1d9',
+          callbacks: {
+            label: function(ctx) {
+              if (ctx.raw === null) return '';
+              return ctx.dataset.label + ': $' + ctx.raw.toFixed(2);
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          ticks: { color: '#8b949e', maxTicksLimit: 12 },
+          grid: { color: '#21262d' },
+        },
+        y: {
+          ticks: { color: '#8b949e', callback: v => '$' + v },
+          grid: { color: '#21262d' },
+        },
+      },
+    },
+  });
+}
+</script>
+</body>
+</html>
